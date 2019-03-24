@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-INFILE = 'input.svf'
+INFILE = 'led.svf'
 
 segment_size = int(16000/4)
 line_length = 100
@@ -32,38 +32,56 @@ def print_payload(payload):
   print(');')
   print('')
 
-def main():
+def format_file():
+  # read all lines from file
   with open(INFILE, 'r') as f:
     lines = f.readlines()
-  # you may also want to remove whitespace characters like `\n` at the end of each line
+  # remove comments
+  lines = [x.split('!')[0] for x in lines]
+  lines = [x.split('//')[0] for x in lines]
+  # remove leading and trailing spaces, and newlines
   lines = [x.strip() for x in lines]
+  # convert whole file into single line
+  file_in_line = ''
+  for line in lines:
+    # ignore empty lines
+    if len(line) >  0:
+      # because some commands are broken into multiple lines, we need to add space after closing brackets
+      append_space = False
+      if line.endswith(')'):
+        append_space = True
+      # append the line and convert all the arbitrary whitespaces to single space
+      file_in_line = ''.join([file_in_line, ' '.join(line.split())])
+      if append_space:
+       file_in_line = file_in_line + ' '
 
-  in_payload = False
+  # split the line at semicolon, ignore whatever remains after last semicolon
+  lines = file_in_line.split(';')[:-1]
+
+  # return formated file
+  return lines
+
+def main():
+  # read file
+  lines = format_file()
+
   payload_length = 0
   payload = ''
+  suffix = ''
 
+  # iterate over lines
   for line in lines:
-    if 'TDI' in line:
-      if line.endswith(';'):
-        print(line)
-        continue
-      in_payload = True
+    # find command
+    if line.startswith('SDR'):
+      # get payload length
       payload_length = int(line.split()[1])
-      if line.split()[3].endswith(')'):
-        in_payload = False
-        print(line)
-      else:
-        payload = line.split()[3][1:]
-    elif in_payload:
-      if line.endswith(';'):
-        payload = ''.join([payload, line.strip()[:-2]])
+      # do we need to split the command
+      if payload_length > segment_size:
+        # get payload without brackets
+        payload = line.split()[3].strip().lstrip('(').rstrip(')').strip()
         convert_payload(payload)
-        payload = ''
-        in_payload = False
       else:
-        payload = ''.join([payload, line.strip()])
-
+        print(line + ';')
     else:
-      print(line)
-
+      print(line + ';')
 main()
